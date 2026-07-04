@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Sentinel</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { width: 400px; padding: 20px; border: 1px solid #ccc; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); background-color: #fff; }
+        input[type="text"] { width: 90%; padding: 8px; margin-bottom: 10px; }
+        button { padding: 8px 15px; cursor: pointer; }
+        .result { margin-top: 15px; padding: 10px; border: 1px solid #f0ad4e; background-color: #fcf8e3; color: #8a6d3b; text-align: left; }
+        .error-status { background-color: #f2dede; border-color: #ebccd1; color: #a94442; }
+        .legitimate-status { background-color: #dff0d8; border-color: #d6e9c6; color: #3c763d; }
+        .malicious-status { background-color: #f2dede; border-color: #ebccd1; color: #a94442; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>URL Sentinel</h1>
+        <input type="text" id="urlInput" value="https://www.google.com">
+        <button id="verifyButton">verify</button>
+        <div id="resultOutput" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000/predict'; 
+        const urlInput = document.getElementById('urlInput');
+        const verifyButton = document.getElementById('verifyButton');
+        const resultDiv = document.getElementById('resultOutput');
+
+        verifyButton.addEventListener('click', verifyUrl);
+
+        async function verifyUrl() {
+            const url = urlInput.value.trim();
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result error-status';
+            resultDiv.innerHTML = 'Checking...';
+
+            if (!url) {
+                resultDiv.innerHTML = 'Please enter a URL.';
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
+                    resultDiv.className = 'result error-status';
+                    resultDiv.innerHTML = `API Error: ${errorData.error || response.statusText}`;
+                    return;
+                }
+
+                const data = await response.json();
+                const isPhishing = data.is_phishing;
+                const confidence = data.confidence || 'undefined'; 
+                const resultUrl = data.url || url;
+
+                let statusText;
+                let className;
+
+                if (isPhishing === true) {
+                    statusText = 'MALICIOUS';
+                    className = 'result malicious-status';
+                } else if (isPhishing === false) {
+                    statusText = 'LEGITIMATE';
+                    className = 'result legitimate-status';
+                } else {
+                    statusText = 'undefined';
+                    className = 'result error-status';
+                }
+
+                resultDiv.className = className;
+                resultDiv.innerHTML = `
+                    URL: ${resultUrl} Status: ${statusText} Confidence (Malicious): ${confidence}${typeof confidence === 'number' ? '%' : ''}
+                `;
+
+            } catch (error) {
+                resultDiv.className = 'result error-status';
+                resultDiv.innerHTML = 'Network Error: Could not connect to the API. Is \'py app.py\' still running in the terminal?';
+            }
+        }
+    </script>
+</body>
+</html>
+
